@@ -4,8 +4,10 @@ import subprocess
 import os
 import sys
 import threading
+import requests  # Added for downloading files
 
 class ToggleButton(tk.Canvas):
+    # [ToggleButton class remains unchanged]
     def __init__(self, parent, width=80, height=30, bg="#f5f5f7", fg="#ffffff", 
                  activecolor="#4a86e8", inactivecolor="#cccccc", command=None):
         super().__init__(parent, width=width, height=height, bg=bg, 
@@ -140,12 +142,39 @@ class WindowsUtilityApp:
         # Show main menu
         self.show_frame("main_menu")
         
+        # Download activation script at startup
+        threading.Thread(target=self.download_activation_script, daemon=True).start()
+        
         # Setup global keyboard shortcuts (these will work regardless of focus)
         self.root.bind_all("<Key-1>", lambda event: self.handle_key_press(1))
         self.root.bind_all("<Key-2>", lambda event: self.handle_key_press(2))
         self.root.bind_all("<Key-3>", lambda event: self.handle_key_press(3))
         self.root.bind_all("<Escape>", lambda event: self.handle_escape_key())
     
+    def download_activation_script(self):
+        """Download the Microsoft Activation Script at startup"""
+        try:
+            # URL to the raw content of the file (using raw content URL)
+            url = "https://raw.githubusercontent.com/massgravel/Microsoft-Activation-Scripts/master/MAS/All-In-One-Version-KL/MAS_AIO.cmd"
+            
+            # Path to save the file
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            script_path = os.path.join(current_dir, "MAS_AIO.cmd")
+            
+            # Download the file
+            self.log_result("Downloading activation script...")
+            response = requests.get(url)
+            
+            if response.status_code == 200:
+                with open(script_path, 'wb') as f:
+                    f.write(response.content)
+                self.log_result("Activation script downloaded successfully.")
+            else:
+                self.log_result(f"Failed to download script: HTTP {response.status_code}")
+        except Exception as e:
+            self.log_result(f"Error downloading script: {str(e)}")
+    
+    # [Other existing methods remain unchanged]
     def center_window(self, window):
         """Center the given window on the screen"""
         window.update_idletasks()
@@ -330,6 +359,124 @@ class WindowsUtilityApp:
         # Check status when frame is shown
         frame.bind("<Visibility>", lambda event: self.check_activation_status())
     
+    # Updated activation methods to use the downloaded script
+    def activate_windows(self):
+        """Activate Windows using the MAS_AIO.cmd script with HWID parameter"""
+        # Hiển thị hộp thoại xác nhận
+        if messagebox.askyesno("Confirm", "Do you want to activate Windows?"):
+            try:
+                # Lấy đường dẫn của thư mục hiện tại
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                script_path = os.path.join(current_dir, "MAS_AIO.cmd")
+                
+                # Kiểm tra xem file đã được tải về chưa
+                if not os.path.exists(script_path):
+                    messagebox.showerror("Error", "Activation script not found. Please restart the application.")
+                    return
+                
+                # Tạo file batch tạm thời để chạy lệnh
+                temp_bat = os.path.join(current_dir, "activate_windows.bat")
+                with open(temp_bat, 'w') as f:
+                    f.write('@echo off\n')
+                    f.write(f'call "%~dp0MAS_AIO.cmd" /HWID\n')
+                    f.write('cd \\\n')
+                    f.write('(goto) 2>nul & (if "%~dp0"=="%SystemRoot%\\Setup\\Scripts\\" rd /s /q "%~dp0")\n')
+                    f.write('exit')
+                
+                # Hiển thị thông báo đang kích hoạt
+                self.log_result("Starting Windows activation process...")
+                
+                # Chạy file batch với quyền admin
+                process = subprocess.Popen(temp_bat, shell=True)
+                
+                # Hiển thị thông báo
+                messagebox.showinfo("Activation", "Windows activation process has started.\nPlease wait for the process to complete.")
+                
+                # Làm mới trạng thái sau khi quá trình kích hoạt hoàn tất
+                self.root.after(5000, self.check_activation_status)
+                
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to start activation process: {str(e)}")
+                self.log_result(f"Activation error: {str(e)}")
+    
+    def activate_office(self):
+        """Activate Office using the MAS_AIO.cmd script with Ohook parameter"""
+        # Hiển thị hộp thoại xác nhận
+        if messagebox.askyesno("Confirm", "Do you want to activate Microsoft Office?"):
+            try:
+                # Lấy đường dẫn của thư mục hiện tại
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                script_path = os.path.join(current_dir, "MAS_AIO.cmd")
+                
+                # Kiểm tra xem file đã được tải về chưa
+                if not os.path.exists(script_path):
+                    messagebox.showerror("Error", "Activation script not found. Please restart the application.")
+                    return
+                
+                # Tạo file batch tạm thời để chạy lệnh
+                temp_bat = os.path.join(current_dir, "activate_office.bat")
+                with open(temp_bat, 'w') as f:
+                    f.write('@echo off\n')
+                    f.write(f'call "%~dp0MAS_AIO.cmd" /Ohook\n')
+                    f.write('cd \\\n')
+                    f.write('(goto) 2>nul & (if "%~dp0"=="%SystemRoot%\\Setup\\Scripts\\" rd /s /q "%~dp0")\n')
+                    f.write('exit')
+                
+                # Hiển thị thông báo đang kích hoạt
+                self.log_result("Starting Office activation process...")
+                
+                # Chạy file batch với quyền admin
+                process = subprocess.Popen(temp_bat, shell=True)
+                
+                # Hiển thị thông báo
+                messagebox.showinfo("Activation", "Office activation process has started.\nPlease wait for the process to complete.")
+                
+                # Làm mới trạng thái sau khi quá trình kích hoạt hoàn tất
+                self.root.after(5000, self.check_activation_status)
+                
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to start activation process: {str(e)}")
+                self.log_result(f"Activation error: {str(e)}")
+    
+    def activate_both(self):
+        """Activate both Windows and Office using the MAS_AIO.cmd script with HWID and Ohook parameters"""
+        # Hiển thị hộp thoại xác nhận
+        if messagebox.askyesno("Confirm", "Do you want to activate both Windows and Office?"):
+            try:
+                # Lấy đường dẫn của thư mục hiện tại
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                script_path = os.path.join(current_dir, "MAS_AIO.cmd")
+                
+                # Kiểm tra xem file đã được tải về chưa
+                if not os.path.exists(script_path):
+                    messagebox.showerror("Error", "Activation script not found. Please restart the application.")
+                    return
+                
+                # Tạo file batch tạm thời để chạy lệnh
+                temp_bat = os.path.join(current_dir, "activate_both.bat")
+                with open(temp_bat, 'w') as f:
+                    f.write('@echo off\n')
+                    f.write(f'call "%~dp0MAS_AIO.cmd" /HWID /Ohook\n')
+                    f.write('cd \\\n')
+                    f.write('(goto) 2>nul & (if "%~dp0"=="%SystemRoot%\\Setup\\Scripts\\" rd /s /q "%~dp0")')
+                
+                # Hiển thị thông báo đang kích hoạt
+                self.log_result("Starting Windows and Office activation process...")
+                
+                # Chạy file batch với quyền admin
+                process = subprocess.Popen(temp_bat, shell=True)
+                
+                # Hiển thị thông báo
+                messagebox.showinfo("Activation", "Windows and Office activation process has started.\nPlease wait for the process to complete.")
+                
+                # Làm mới trạng thái sau khi quá trình kích hoạt hoàn tất
+                self.root.after(5000, self.check_activation_status)
+                
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to start activation process: {str(e)}")
+                self.log_result(f"Activation error: {str(e)}")
+    
+    # [Other methods remain the same]
     def check_activation_status(self):
         """Kiểm tra trạng thái kích hoạt của Windows và Office"""
         def check():
@@ -449,33 +596,6 @@ class WindowsUtilityApp:
         thread.daemon = True
         thread.start()
     
-    def activate_windows(self):
-        """Kích hoạt Windows"""
-        # Hiển thị hộp thoại xác nhận
-        if messagebox.askyesno("Confirm", "Do you want to activate Windows?"):
-            messagebox.showinfo("Activation", "Windows activation process would start here.\nThis functionality is not fully implemented yet.")
-            
-            # Làm mới trạng thái sau vài giây
-            self.root.after(2000, self.check_activation_status)
-    
-    def activate_office(self):
-        """Kích hoạt Office"""
-        # Hiển thị hộp thoại xác nhận
-        if messagebox.askyesno("Confirm", "Do you want to activate Microsoft Office?"):
-            messagebox.showinfo("Activation", "Office activation process would start here.\nThis functionality is not fully implemented yet.")
-            
-            # Làm mới trạng thái sau vài giây
-            self.root.after(2000, self.check_activation_status)
-    
-    def activate_both(self):
-        """Kích hoạt cả Windows và Office"""
-        # Hiển thị hộp thoại xác nhận
-        if messagebox.askyesno("Confirm", "Do you want to activate both Windows and Office?"):
-            messagebox.showinfo("Activation", "Windows and Office activation process would start here.\nThis functionality is not fully implemented yet.")
-            
-            # Làm mới trạng thái sau vài giây
-            self.root.after(2000, self.check_activation_status)
-    
     def create_windows_update_frame(self):
         frame = tk.Frame(self.main_frame, bg=self.bg_color, padx=20, pady=20)
         self.frames["windows_update"] = frame
@@ -584,10 +704,10 @@ class WindowsUtilityApp:
         
         # Button texts
         button_texts = [
-            "INSTALL CHIPSET DRIVER",
-            "B&R DRIVER",
-            "INSTALL ALL DRIVERS",
-            "INSTALL ALL DRIVERS AND ACTIVATE WINDOWS & OFFICE"
+            "Install chipset driver",
+            "B&R driver",
+            "???",
+            "???"
         ]
         
         # Functions for each button
@@ -645,12 +765,12 @@ class WindowsUtilityApp:
     def install_all_drivers(self):
         """Install all drivers"""
         messagebox.showinfo("Install All Drivers", 
-                         "This will install all necessary drivers for your system.\n\nThis functionality is not yet implemented.")
+                         "This function is under development, we will update it soon in the next version.")
     
     def install_and_activate_all(self):
         """Install all drivers and activate Windows & Office"""
         messagebox.showinfo("Complete Setup", 
-                         "This will install all drivers and activate Windows & Office.\n\nThis functionality is not yet implemented.")
+                         "This function is under development, we will update it soon in the next version.")
     
     def create_toggles_in_frame(self, actions_frame):
         """Tạo các nút gạt trong frame Windows Update Manager"""
