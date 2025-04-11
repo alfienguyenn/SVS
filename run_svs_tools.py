@@ -10,47 +10,47 @@ import getpass
 import tkinter as tk
 from tkinter import simpledialog, messagebox
 
-# Biến toàn cục để theo dõi các tệp cần xóa
+# Global variable to track files to be deleted
 temp_files = []
 
 def cleanup():
-    """Xóa toàn bộ dữ liệu tạm đã tải xuống"""
+    """Delete all temporary downloaded data"""
     global temp_files
     
-    print("\nDọn dẹp dữ liệu tạm...")
+    print("\nCleaning up temporary data...")
     for file_path in temp_files:
         try:
             if os.path.isfile(file_path):
                 os.remove(file_path)
-                print(f"✓ Đã xóa file: {file_path}")
+                print(f"✓ Deleted file: {file_path}")
             elif os.path.isdir(file_path):
                 shutil.rmtree(file_path)
-                print(f"✓ Đã xóa thư mục: {file_path}")
+                print(f"✓ Deleted directory: {file_path}")
         except Exception as e:
-            print(f"! Lỗi khi xóa {file_path}: {e}")
+            print(f"! Error when deleting {file_path}: {e}")
 
 def download_content(url, is_text=True):
-    """Tải nội dung từ GitHub và trả về nội dung hoặc lưu vào tệp"""
+    """Download content from GitHub and return content or save to file"""
     try:
-        # Chuyển đổi URL GitHub thành URL raw nếu cần
+        # Convert GitHub URL to raw URL if needed
         if "github.com" in url and "/blob/" in url:
             url = url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
         
-        print(f"Đang tải từ: {url}")
+        print(f"Downloading from: {url}")
         response = requests.get(url, timeout=10)
         response.raise_for_status()  # Raise an exception for HTTP errors
         
         if is_text:
             return response.text
         else:
-            # Nếu không phải text, trả về nội dung nhị phân
+            # If not text, return binary content
             return response.content
     except Exception as e:
-        print(f"Lỗi khi tải nội dung: {e}")
+        print(f"Error when downloading content: {e}")
         return None
 
 def save_to_file(content, destination):
-    """Lưu nội dung vào tệp"""
+    """Save content to file"""
     try:
         if isinstance(content, str):
             with open(destination, 'w', encoding='utf-8') as file:
@@ -59,30 +59,30 @@ def save_to_file(content, destination):
             with open(destination, 'wb') as file:
                 file.write(content)
         
-        # Thêm file vào danh sách cần xóa
+        # Add file to the list to be deleted
         global temp_files
         temp_files.append(destination)
         
-        print(f"✓ Đã lưu thành công vào {destination}")
+        print(f"✓ Successfully saved to {destination}")
         return True
     except Exception as e:
-        print(f"Lỗi khi lưu tệp: {e}")
+        print(f"Error when saving file: {e}")
         return False
 
 def get_access_code(url):
-    """Tải và đọc mã truy cập từ URL"""
+    """Download and read access code from URL"""
     access_code = download_content(url)
     if access_code:
-        # Làm sạch mã (loại bỏ khoảng trắng, dòng mới)
+        # Clean the code (remove whitespace, newlines)
         return access_code.strip()
     return None
 
 def verify_access_code(correct_code):
-    """Hiển thị hộp thoại yêu cầu mã truy cập và xác thực với giao diện tùy chỉnh"""
-    # Tạo cửa sổ đăng nhập tùy chỉnh
+    """Display dialog requesting access code and validate with custom interface"""
+    # Create custom login window
     login_window = tk.Tk()
-    login_window.title("Xác thực")
-    login_window.geometry("400x200")  # Tăng kích thước cửa sổ
+    login_window.title("Authentication")
+    login_window.geometry("400x200")  # Increase window size
     login_window.resizable(False, False)
     login_window.configure(bg="#f0f0f0")
     
@@ -94,31 +94,31 @@ def verify_access_code(correct_code):
     y = (login_window.winfo_screenheight() // 2) - (height // 2)
     login_window.geometry(f'{width}x{height}+{x}+{y}')
     
-    # Biến để kiểm soát số lần thử
-    attempts = [0]  # Sử dụng list để có thể thay đổi giá trị trong hàm con
+    # Variable to control number of attempts
+    attempts = [0]  # Use list to be able to change value in inner function
     max_attempts = 3
     
-    # Biến kết quả
-    result = [False]  # Sử dụng list để có thể thay đổi giá trị trong hàm con
+    # Result variable
+    result = [False]  # Use list to be able to change value in inner function
     
-    # Tạo label hướng dẫn
+    # Create guide label
     label = tk.Label(
         login_window, 
-        text=f"Nhập mã truy cập để tiếp tục.\nBạn còn {max_attempts} lần thử:",
+        text=f"Enter access code to continue.\nYou have {max_attempts} attempts remaining:",
         font=("Arial", 12),
         bg="#f0f0f0",
         pady=10
     )
     label.pack(pady=10)
     
-    # Tạo frame chứa entry
+    # Create frame containing entry
     entry_frame = tk.Frame(login_window, bg="#f0f0f0")
     entry_frame.pack(pady=5, fill="x", padx=30)
     
-    # Tạo biến chuỗi để lưu password thực
+    # Create string variable to store actual password
     password_var = tk.StringVar()
     
-    # Tạo custom Entry tự xử lý việc hiển thị dấu sao
+    # Create custom Entry to handle displaying asterisks
     class PasswordEntry(tk.Entry):
         def __init__(self, master=None, **kwargs):
             self.password = ""
@@ -138,7 +138,7 @@ def verify_access_code(correct_code):
         def get_password(self):
             return self.password
     
-    # Tạo entry tùy chỉnh
+    # Create custom entry
     entry = PasswordEntry(
         entry_frame,
         font=("Arial", 12),
@@ -148,28 +148,28 @@ def verify_access_code(correct_code):
     entry.pack(fill="x", ipady=5)
     entry.focus()
     
-    # Hàm xử lý khi nhập ký tự
+    # Function to handle key input
     def on_key_event(event):
-        # Nếu là phím xóa (Backspace)
+        # If Backspace key
         if event.keysym == 'BackSpace':
             entry.remove_char()
-        # Nếu là Enter
+        # If Enter key
         elif event.keysym == 'Return':
             check_password()
-        # Nếu là ký tự thông thường
+        # If normal character
         elif len(event.char) == 1 and event.char.isprintable():
             entry.add_char(event.char)
-        # Ngăn chặn sự kiện mặc định để không hiển thị ký tự thực
+        # Prevent default event to not display actual character
         return "break"
     
-    # Gán sự kiện nhấn phím cho entry
+    # Assign key event to entry
     entry.bind("<Key>", on_key_event)
     
-    # Frame chứa các nút
+    # Frame containing buttons
     button_frame = tk.Frame(login_window, bg="#f0f0f0")
     button_frame.pack(pady=20)
     
-    # Hàm kiểm tra mật khẩu
+    # Function to check password
     def check_password():
         entered_password = entry.get_password()
         attempts[0] += 1
@@ -177,21 +177,21 @@ def verify_access_code(correct_code):
         
         if entered_password.strip() == correct_code:
             result[0] = True
-            messagebox.showinfo("Thành công", "Mã truy cập chính xác!")
+            messagebox.showinfo("Success", "Correct access code!")
             login_window.destroy()
         else:
             if remaining > 0:
-                messagebox.showerror("Lỗi", f"Mã truy cập không đúng. Còn {remaining} lần thử.")
-                label.config(text=f"Nhập mã truy cập để tiếp tục.\nBạn còn {remaining} lần thử:")
-                # Xóa mật khẩu cũ
+                messagebox.showerror("Error", f"Incorrect access code. {remaining} attempts remaining.")
+                label.config(text=f"Enter access code to continue.\nYou have {remaining} attempts remaining:")
+                # Clear old password
                 entry.password = ""
                 entry.delete(0, tk.END)
                 entry.focus()
             else:
-                messagebox.showerror("Lỗi", "Quá nhiều lần thử sai. Chương trình sẽ thoát.")
+                messagebox.showerror("Error", "Too many incorrect attempts. The program will exit.")
                 login_window.destroy()
     
-    # Nút OK
+    # OK button
     ok_button = tk.Button(
         button_frame, 
         text="OK", 
@@ -204,7 +204,7 @@ def verify_access_code(correct_code):
     )
     ok_button.pack(side=tk.LEFT, padx=10)
     
-    # Nút Cancel
+    # Cancel button
     cancel_button = tk.Button(
         button_frame, 
         text="Cancel", 
@@ -217,137 +217,137 @@ def verify_access_code(correct_code):
     # Mainloop
     login_window.mainloop()
     
-    # Trả về kết quả xác thực
+    # Return authentication result
     return result[0]
 
 def check_required_modules():
-    """Kiểm tra và cài đặt các module cần thiết nếu cần"""
+    """Check and install required modules if needed"""
     required_modules = ['requests', 'tkinter']
     
     for module in required_modules:
         try:
             if module == 'tkinter':
-                # Thử import tkinter
+                # Try to import tkinter
                 __import__(module)
             else:
-                # Kiểm tra xem module đã được cài đặt chưa
+                # Check if module is installed
                 subprocess.run([sys.executable, '-c', f'import {module}'], 
                               check=True, capture_output=True)
-            print(f"✓ Module {module} đã được cài đặt")
+            print(f"✓ Module {module} is installed")
         except (ImportError, subprocess.CalledProcessError):
-            print(f"Module {module} chưa được cài đặt. Đang cài đặt...")
+            print(f"Module {module} is not installed. Installing...")
             try:
                 subprocess.run([sys.executable, '-m', 'pip', 'install', module], 
                               check=True)
-                print(f"✓ Module {module} đã cài đặt thành công")
+                print(f"✓ Module {module} installed successfully")
             except subprocess.CalledProcessError as e:
-                print(f"Lỗi khi cài đặt {module}: {e}")
+                print(f"Error installing {module}: {e}")
                 return False
     return True
 
 def run_script(script_path):
-    """Chạy script Python với quyền admin trên Windows"""
+    """Run Python script with admin rights on Windows"""
     try:
         if sys.platform == 'win32':
-            # Trên Windows, thử chạy với quyền admin
-            print("Đang yêu cầu quyền quản trị viên...")
+            # On Windows, try running with admin rights
+            print("Requesting administrator privileges...")
             try:
                 import ctypes
                 if not ctypes.windll.shell32.IsUserAnAdmin():
-                    print("Script cần quyền quản trị viên. Đang yêu cầu...")
-                    # Nếu không phải admin, chạy lại với quyền admin
+                    print("Script requires administrator privileges. Requesting...")
+                    # If not admin, run again with admin rights
                     ctypes.windll.shell32.ShellExecuteW(
                         None, "runas", sys.executable, f'"{script_path}"', None, 1)
-                    # Đợi một chút để có thời gian khởi động
+                    # Wait a bit to give time to start up
                     time.sleep(2)
                     return True
                 else:
-                    # Đã là admin, chạy bình thường
+                    # Already admin, run normally
                     subprocess.run([sys.executable, script_path], check=True)
                     return True
             except Exception as e:
-                print(f"Lỗi khi yêu cầu quyền admin: {e}")
-                # Thử chạy bình thường nếu có lỗi
+                print(f"Error requesting admin privileges: {e}")
+                # Try running normally if error occurs
                 try:
                     subprocess.run([sys.executable, script_path], check=True)
                     return True
                 except Exception as sub_e:
-                    print(f"Lỗi khi chạy script: {sub_e}")
+                    print(f"Error running script: {sub_e}")
                     return False
         else:
-            # Trên các nền tảng khác
-            print("Đang chạy script...")
+            # On other platforms
+            print("Running script...")
             subprocess.run([sys.executable, script_path], check=True)
             return True
     except subprocess.CalledProcessError as e:
-        print(f"Lỗi khi chạy script: {e}")
+        print(f"Error running script: {e}")
         return False
     except Exception as e:
-        print(f"Lỗi không xác định: {e}")
+        print(f"Undefined error: {e}")
         return False
 
 def main():
-    """Hàm chính để xác thực, tải về và chạy SVS Tools script"""
-    print("SVS Tools Launcher - Phiên bản bảo mật")
+    """Main function to authenticate, download and run SVS Tools script"""
+    print("SVS Tools Launcher - Secure Version")
     print("=" * 50)
     
-    # Đăng ký hàm dọn dẹp để chạy khi thoát chương trình
+    # Register cleanup function to run when exiting program
     atexit.register(cleanup)
     
-    # Kiểm tra các module cần thiết
+    # Check required modules
     if not check_required_modules():
-        print("Không thể cài đặt các module cần thiết. Đang thoát.")
+        print("Unable to install required modules. Exiting.")
         return
     
-    # URL cho mã truy cập và script
+    # URLs for access code and script
     access_code_url = "https://github.com/alfienguyenn/SVS/blob/main/AccessCode.txt"
     script_url = "https://github.com/alfienguyenn/SVS/blob/main/SVS_Tools.py"
     
-    # Tải mã truy cập trước
-    print("Đang tải mã truy cập...")
+    # Download access code first
+    print("Downloading access code...")
     access_code = get_access_code(access_code_url)
     
     if not access_code:
-        print("Không thể tải mã truy cập. Đang thoát.")
+        print("Unable to download access code. Exiting.")
         return
     
-    # Yêu cầu người dùng nhập mã truy cập
+    # Ask user to enter access code
     if not verify_access_code(access_code):
-        print("Xác thực thất bại. Đang thoát.")
+        print("Authentication failed. Exiting.")
         return
         
-    # Sau khi xác thực thành công, tải script
-    print("Xác thực thành công! Đang tải script...")
+    # After successful authentication, download script
+    print("Authentication successful! Downloading script...")
     script_content = download_content(script_url)
     
     if not script_content:
-        print("Không thể tải script. Đang thoát.")
+        print("Unable to download script. Exiting.")
         return
     
-    # Tạo thư mục tạm để lưu script
+    # Create temp directory to save script
     temp_dir = tempfile.gettempdir()
     script_path = os.path.join(temp_dir, f"SVS_Tools_{int(time.time())}.py")
     
-    # Lưu script vào file tạm
+    # Save script to temp file
     if save_to_file(script_content, script_path):
-        print(f"Script đã được lưu vào {script_path}")
+        print(f"Script saved to {script_path}")
         
-        # Chạy script
-        print("Đang chạy SVS Tools...")
+        # Run script
+        print("Running SVS Tools...")
         if run_script(script_path):
-            print("SVS Tools đã chạy thành công!")
+            print("SVS Tools ran successfully!")
         else:
-            print("Có lỗi xảy ra khi chạy SVS Tools.")
+            print("An error occurred when running SVS Tools.")
     else:
-        print("Không thể lưu script. Đang thoát.")
+        print("Unable to save script. Exiting.")
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\nChương trình bị dừng bởi người dùng.")
+        print("\nProgram stopped by user.")
     except Exception as e:
-        print(f"\nLỗi không mong muốn: {e}")
+        print(f"\nUnexpected error: {e}")
     finally:
-        # Đảm bảo dọn dẹp được gọi ngay cả khi có lỗi
+        # Ensure cleanup is called even if there is an error
         cleanup()
