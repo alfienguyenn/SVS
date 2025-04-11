@@ -426,7 +426,7 @@ def run_script(script_path):
 
 def main():
     """Main function to authenticate, download and run SVS Tools script"""
-    print("SVS Tools Launcher - Secure Version")
+    print("SVS Tools - Secure Version")
     print("=" * 50)
     
     # Register cleanup function to run when exiting program
