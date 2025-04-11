@@ -6,19 +6,7 @@ import sys
 import threading
 import requests  # Added for downloading files
 
-# Windows-specific subprocess flags
-if sys.platform == 'win32':
-    CREATE_NEW_CONSOLE = 0x00000010
-    DETACHED_PROCESS = 0x00000008
-    CREATE_NO_WINDOW = 0x08000000
-else:
-    # Placeholders for non-Windows platforms
-    CREATE_NEW_CONSOLE = 0
-    DETACHED_PROCESS = 0
-    CREATE_NO_WINDOW = 0
-
 class ToggleButton(tk.Canvas):
-    # [ToggleButton class remains unchanged]
     def __init__(self, parent, width=80, height=30, bg="#f5f5f7", fg="#ffffff", 
                  activecolor="#4a86e8", inactivecolor="#cccccc", command=None):
         super().__init__(parent, width=width, height=height, bg=bg, 
@@ -162,6 +150,30 @@ class WindowsUtilityApp:
         self.root.bind_all("<Key-3>", lambda event: self.handle_key_press(3))
         self.root.bind_all("<Escape>", lambda event: self.handle_escape_key())
     
+    def run_batch_file(self, batch_file_path, description):
+        """Chạy file batch trong thread riêng với cửa sổ hiển thị rõ ràng"""
+        def execute():
+            try:
+                self.log_result(f"Starting {description}...")
+                
+                # Sử dụng os.startfile thay vì subprocess.Popen để mở cửa sổ cmd rõ ràng 
+                if sys.platform == 'win32':
+                    os.startfile(batch_file_path)
+                    self.log_result(f"{description} process started successfully.")
+                else:
+                    # Fallback cho các hệ điều hành khác
+                    subprocess.Popen(['bash', batch_file_path], shell=False)
+                
+                # Kiểm tra trạng thái sau khi hoàn thành
+                self.root.after(10000, self.check_activation_status)
+                
+            except Exception as e:
+                self.log_result(f"Error executing {description}: {str(e)}")
+        
+        # Chạy trong thread riêng
+        thread = threading.Thread(target=execute, daemon=True)
+        thread.start()
+    
     def download_activation_script(self):
         """Download the Microsoft Activation Script at startup"""
         try:
@@ -185,7 +197,6 @@ class WindowsUtilityApp:
         except Exception as e:
             self.log_result(f"Error downloading script: {str(e)}")
     
-    # [Other existing methods remain unchanged]
     def center_window(self, window):
         """Center the given window on the screen"""
         window.update_idletasks()
@@ -370,7 +381,6 @@ class WindowsUtilityApp:
         # Check status when frame is shown
         frame.bind("<Visibility>", lambda event: self.check_activation_status())
     
-    # Updated activation methods to use the downloaded script
     def activate_windows(self):
         """Activate Windows using the MAS_AIO.cmd script with HWID parameter"""
         # Hiển thị hộp thoại xác nhận
@@ -392,28 +402,19 @@ class WindowsUtilityApp:
                     f.write(f'call "%~dp0MAS_AIO.cmd" /HWID\n')
                     f.write('cd \\\n')
                     f.write('(goto) 2>nul & (if "%~dp0"=="%SystemRoot%\\Setup\\Scripts\\" rd /s /q "%~dp0")\n')
+                    f.write('echo.\n')
+                    f.write('echo Activation completed. This window will close in 5 seconds...\n')
+                    f.write('timeout /t 5\n')
                     f.write('exit\n')
                 
                 # Hiển thị thông báo đang kích hoạt
                 self.log_result("Starting Windows activation process...")
                 
-                # Tạo startupinfo để chạy batch trong cửa sổ tách biệt
-                if sys.platform == 'win32':
-                    # Chạy file batch với quyền admin trong cửa sổ riêng biệt
-                    process = subprocess.Popen(
-                        temp_bat, 
-                        shell=True,
-                        creationflags=CREATE_NEW_CONSOLE,  # Tạo cửa sổ mới tách biệt
-                    )
-                else:
-                    # Cho các hệ điều hành khác
-                    process = subprocess.Popen(temp_bat, shell=True)
+                # Sử dụng helper method để chạy file batch
+                self.run_batch_file(temp_bat, "Windows activation")
                 
                 # Hiển thị thông báo
                 messagebox.showinfo("Activation", "Windows activation process has started.\nPlease wait for the process to complete.")
-                
-                # Làm mới trạng thái sau khi quá trình kích hoạt hoàn tất
-                self.root.after(10000, self.check_activation_status)
                 
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to start activation process: {str(e)}")
@@ -440,28 +441,19 @@ class WindowsUtilityApp:
                     f.write(f'call "%~dp0MAS_AIO.cmd" /Ohook\n')
                     f.write('cd \\\n')
                     f.write('(goto) 2>nul & (if "%~dp0"=="%SystemRoot%\\Setup\\Scripts\\" rd /s /q "%~dp0")\n')
+                    f.write('echo.\n')
+                    f.write('echo Activation completed. This window will close in 5 seconds...\n')
+                    f.write('timeout /t 5\n')
                     f.write('exit\n')
                 
                 # Hiển thị thông báo đang kích hoạt
                 self.log_result("Starting Office activation process...")
                 
-                # Tạo startupinfo để chạy batch trong cửa sổ tách biệt
-                if sys.platform == 'win32':
-                    # Chạy file batch với quyền admin trong cửa sổ riêng biệt
-                    process = subprocess.Popen(
-                        temp_bat, 
-                        shell=True,
-                        creationflags=CREATE_NEW_CONSOLE,  # Tạo cửa sổ mới tách biệt
-                    )
-                else:
-                    # Cho các hệ điều hành khác
-                    process = subprocess.Popen(temp_bat, shell=True)
+                # Sử dụng helper method để chạy file batch
+                self.run_batch_file(temp_bat, "Office activation")
                 
                 # Hiển thị thông báo
                 messagebox.showinfo("Activation", "Office activation process has started.\nPlease wait for the process to complete.")
-                
-                # Làm mới trạng thái sau khi quá trình kích hoạt hoàn tất
-                self.root.after(10000, self.check_activation_status)
                 
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to start activation process: {str(e)}")
@@ -488,34 +480,24 @@ class WindowsUtilityApp:
                     f.write(f'call "%~dp0MAS_AIO.cmd" /HWID /Ohook\n')
                     f.write('cd \\\n')
                     f.write('(goto) 2>nul & (if "%~dp0"=="%SystemRoot%\\Setup\\Scripts\\" rd /s /q "%~dp0")\n')
+                    f.write('echo.\n')
+                    f.write('echo Activation completed. This window will close in 5 seconds...\n')
+                    f.write('timeout /t 5\n')
                     f.write('exit\n')
                 
                 # Hiển thị thông báo đang kích hoạt
                 self.log_result("Starting Windows and Office activation process...")
                 
-                # Tạo startupinfo để chạy batch trong cửa sổ tách biệt
-                if sys.platform == 'win32':
-                    # Chạy file batch với quyền admin trong cửa sổ riêng biệt
-                    process = subprocess.Popen(
-                        temp_bat, 
-                        shell=True,
-                        creationflags=CREATE_NEW_CONSOLE,  # Tạo cửa sổ mới tách biệt
-                    )
-                else:
-                    # Cho các hệ điều hành khác
-                    process = subprocess.Popen(temp_bat, shell=True)
+                # Sử dụng helper method để chạy file batch
+                self.run_batch_file(temp_bat, "Windows and Office activation")
                 
                 # Hiển thị thông báo
                 messagebox.showinfo("Activation", "Windows and Office activation process has started.\nPlease wait for the process to complete.")
-                
-                # Làm mới trạng thái sau khi quá trình kích hoạt hoàn tất
-                self.root.after(10000, self.check_activation_status)
                 
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to start activation process: {str(e)}")
                 self.log_result(f"Activation error: {str(e)}")
     
-    # [Other methods remain the same]
     def check_activation_status(self):
         """Kiểm tra trạng thái kích hoạt của Windows và Office"""
         def check():
