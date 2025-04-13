@@ -531,18 +531,28 @@ class WindowsUtilityApp:
         self.root.bind_all("<Escape>", lambda event: self.handle_escape_key())
     
     def run_batch_file(self, batch_file_path, description):
-        """Chạy file batch trong thread riêng với cửa sổ hiển thị rõ ràng"""
+        """Chạy file batch trong thread riêng - ẩn cửa sổ cmd"""
         def execute():
             try:
                 self.log_result(f"Starting {description}...")
                 
-                # Sử dụng os.startfile thay vì subprocess.Popen để mở cửa sổ cmd rõ ràng 
                 if sys.platform == 'win32':
-                    os.startfile(batch_file_path)
+                    # Sử dụng subprocess.Popen với cửa sổ ẩn thay vì os.startfile
+                    startupinfo = subprocess.STARTUPINFO()
+                    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                    startupinfo.wShowWindow = subprocess.SW_HIDE
+                    
+                    # Sử dụng /c để cmd tự đóng sau khi thực thi xong
+                    subprocess.Popen(
+                        ['cmd', '/c', batch_file_path], 
+                        shell=False,
+                        startupinfo=startupinfo,
+                        creationflags=subprocess.CREATE_NO_WINDOW
+                    )
                     self.log_result(f"{description} process started successfully.")
                 else:
-                    # Fallback cho các hệ điều hành khác
-                    subprocess.Popen(['bash', batch_file_path], shell=False)
+                    # Fallback cho các hệ điều hành khác - chạy ẩn nếu có thể
+                    subprocess.Popen(['bash', batch_file_path], shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 
                 # Kiểm tra trạng thái sau khi hoàn thành
                 self.root.after(10000, self.check_activation_status)
@@ -883,21 +893,21 @@ class WindowsUtilityApp:
         def check():
             # Kiểm tra phiên bản Windows và trạng thái kích hoạt (gộp lại thành một dòng)
             try:
-                # Lấy phiên bản Windows
-                result_version = subprocess.run(["powershell", "-Command", 
-                                      "(Get-WmiObject -Class Win32_OperatingSystem).Caption"], 
-                                     capture_output=True, text=True)
-                version = result_version.stdout.strip()
+                # Lấy phiên bản Windows - sử dụng hàm chung run_powershell_command
+                returncode, stdout, stderr = run_powershell_command(
+                    "(Get-WmiObject -Class Win32_OperatingSystem).Caption"
+                )
+                version = stdout.strip()
                 
-                # Kiểm tra trạng thái kích hoạt
-                result_activation = subprocess.run(["powershell", "-Command", 
-                                      "Get-CimInstance -ClassName SoftwareLicensingProduct | " +
-                                      "Where-Object {$_.Name -like 'Windows*' -and $_.LicenseStatus -eq 1} | " +
-                                      "Select-Object -First 1 | Select-Object -ExpandProperty LicenseStatus"], 
-                                     capture_output=True, text=True)
+                # Kiểm tra trạng thái kích hoạt - sử dụng hàm chung run_powershell_command
+                returncode, stdout, stderr = run_powershell_command(
+                    "Get-CimInstance -ClassName SoftwareLicensingProduct | " +
+                    "Where-Object {$_.Name -like 'Windows*' -and $_.LicenseStatus -eq 1} | " +
+                    "Select-Object -First 1 | Select-Object -ExpandProperty LicenseStatus"
+                )
                 
                 # Hiển thị kết quả gộp
-                if result_activation.stdout.strip() == "1":
+                if stdout.strip() == "1":
                     status = "Activated"
                     color = self.enabled_color
                 else:
@@ -933,9 +943,9 @@ class WindowsUtilityApp:
                 
                 for cmd in office_cmds:
                     if not office_version:
-                        result = subprocess.run(["powershell", "-Command", cmd], capture_output=True, text=True)
-                        if result.stdout.strip():
-                            output = result.stdout.strip()
+                        returncode, stdout, stderr = run_powershell_command(cmd)
+                        if stdout.strip():
+                            output = stdout.strip()
                             
                             # Xử lý output để lấy phiên bản
                             if "365" in output or "2021" in output or "2019" in output or "2016" in output:
@@ -954,22 +964,20 @@ class WindowsUtilityApp:
                 # Nếu vẫn không tìm thấy, thử một cách cuối cùng
                 if not office_version:
                     # Kiểm tra thông qua các thư mục cài đặt
-                    result = subprocess.run(["powershell", "-Command", 
-                                          "Test-Path 'C:\\Program Files\\Microsoft Office'"], 
-                                         capture_output=True, text=True)
-                    if result.stdout.strip() == "True":
+                    returncode, stdout, stderr = run_powershell_command("Test-Path 'C:\\Program Files\\Microsoft Office'")
+                    if stdout.strip() == "True":
                         office_version = "Microsoft Office"
                 
                 # Kiểm tra trạng thái kích hoạt
-                result_activation = subprocess.run(["powershell", "-Command", 
-                                                "Get-CimInstance -ClassName SoftwareLicensingProduct | " +
-                                                "Where-Object {$_.Name -like '*Office*' -and $_.ApplicationID -like '*Office*' -and $_.LicenseStatus -eq 1} | " +
-                                                "Select-Object -First 1 | Select-Object -ExpandProperty LicenseStatus"], 
-                                               capture_output=True, text=True)
+                returncode, activate_stdout, stderr = run_powershell_command(
+                    "Get-CimInstance -ClassName SoftwareLicensingProduct | " +
+                    "Where-Object {$_.Name -like '*Office*' -and $_.ApplicationID -like '*Office*' -and $_.LicenseStatus -eq 1} | " +
+                    "Select-Object -First 1 | Select-Object -ExpandProperty LicenseStatus"
+                )
                 
                 # Hiển thị kết quả gộp
                 if office_version:
-                    if result_activation.stdout.strip() == "1":
+                    if activate_stdout.strip() == "1":
                         status = "Activated"
                         color = self.enabled_color
                     else:
@@ -1221,9 +1229,8 @@ class WindowsUtilityApp:
         def check():
             # Check Windows Update service status
             try:
-                result = subprocess.run(["powershell", "-Command", "Get-Service -Name wuauserv | Select-Object -ExpandProperty Status"], 
-                                      capture_output=True, text=True)
-                status = result.stdout.strip()
+                returncode, stdout, stderr = run_powershell_command("Get-Service -Name wuauserv | Select-Object -ExpandProperty Status")
+                status = stdout.strip()
                 
                 # Sử dụng after() để cập nhật GUI từ main thread
                 self.root.after(0, lambda: self.update_ui_status(status))
@@ -1254,10 +1261,9 @@ class WindowsUtilityApp:
         
         # Kiểm tra driver update policy
         try:
-            result = subprocess.run(["powershell", "-Command", "Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate' -Name 'ExcludeWUDriversInQualityUpdate' -ErrorAction SilentlyContinue"], 
-                                  capture_output=True, text=True)
+            returncode, stdout, stderr = run_powershell_command("Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate' -Name 'ExcludeWUDriversInQualityUpdate' -ErrorAction SilentlyContinue")
             
-            if "ExcludeWUDriversInQualityUpdate : 1" in result.stdout:
+            if "ExcludeWUDriversInQualityUpdate : 1" in stdout:
                 self.driver_status_label.config(
                     text="Driver Updates: Blocked",
                     fg=self.disabled_color
@@ -1278,18 +1284,18 @@ class WindowsUtilityApp:
                 if enable:
                     # Enable Windows Update
                     self.root.after(0, lambda: self.log_result("Enabling Windows Update..."))
-                    result = subprocess.run(["powershell", "-Command", 
-                                          "Set-Service -Name wuauserv -StartupType Automatic; Start-Service -Name wuauserv"],
-                                         capture_output=True, text=True)
+                    returncode, stdout, stderr = run_powershell_command(
+                        "Set-Service -Name wuauserv -StartupType Automatic; Start-Service -Name wuauserv"
+                    )
                     
                     # Cập nhật UI từ main thread
                     self.root.after(0, lambda: self.update_after_toggle(True))
                 else:
                     # Disable Windows Update
                     self.root.after(0, lambda: self.log_result("Disabling Windows Update..."))
-                    result = subprocess.run(["powershell", "-Command", 
-                                          "Stop-Service -Name wuauserv -Force; Set-Service -Name wuauserv -StartupType Disabled"],
-                                         capture_output=True, text=True)
+                    returncode, stdout, stderr = run_powershell_command(
+                        "Stop-Service -Name wuauserv -Force; Set-Service -Name wuauserv -StartupType Disabled"
+                    )
                     
                     # Cập nhật UI từ main thread
                     self.root.after(0, lambda: self.update_after_toggle(False))
@@ -1324,19 +1330,19 @@ class WindowsUtilityApp:
                 if allow:
                     # Allow driver updates
                     self.root.after(0, lambda: self.log_result("Allowing driver updates..."))
-                    result = subprocess.run(["powershell", "-Command", 
-                                          "Remove-ItemProperty -Path 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate' -Name 'ExcludeWUDriversInQualityUpdate' -ErrorAction SilentlyContinue"],
-                                         capture_output=True, text=True)
+                    returncode, stdout, stderr = run_powershell_command(
+                        "Remove-ItemProperty -Path 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate' -Name 'ExcludeWUDriversInQualityUpdate' -ErrorAction SilentlyContinue"
+                    )
                     
                     # Cập nhật UI từ main thread
                     self.root.after(0, lambda: self.update_driver_toggle(True))
                 else:
                     # Block driver updates
                     self.root.after(0, lambda: self.log_result("Blocking driver updates..."))
-                    result = subprocess.run(["powershell", "-Command", 
-                                          "New-Item -Path 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate' -Force -ErrorAction SilentlyContinue | Out-Null; " +
-                                          "Set-ItemProperty -Path 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate' -Name 'ExcludeWUDriversInQualityUpdate' -Value 1 -Type DWord -Force"],
-                                         capture_output=True, text=True)
+                    returncode, stdout, stderr = run_powershell_command(
+                        "New-Item -Path 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate' -Force -ErrorAction SilentlyContinue | Out-Null; " +
+                        "Set-ItemProperty -Path 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate' -Name 'ExcludeWUDriversInQualityUpdate' -Value 1 -Type DWord -Force"
+                    )
                     
                     # Cập nhật UI từ main thread
                     self.root.after(0, lambda: self.update_driver_toggle(False))
@@ -1415,10 +1421,22 @@ class WindowsUtilityApp:
         messagebox.showinfo("Info", "This functionality is not yet implemented.")
 
 def run_powershell_command(command):
-    """Run a simple PowerShell command"""
+    """Run a simple PowerShell command with hidden window"""
     try:
-        result = subprocess.run(["powershell", "-Command", command], 
-                              capture_output=True, text=True)
+        # Tạo startupinfo object để ẩn cửa sổ PowerShell
+        startupinfo = None
+        if sys.platform == "win32":
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = subprocess.SW_HIDE
+            
+        result = subprocess.run(
+            ["powershell", "-WindowStyle", "Hidden", "-Command", command], 
+            capture_output=True, 
+            text=True,
+            startupinfo=startupinfo,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+        )
         return result.returncode, result.stdout, result.stderr
     except Exception as e:
         return -1, "", str(e)
