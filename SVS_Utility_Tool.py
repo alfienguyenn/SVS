@@ -576,7 +576,7 @@ class WindowsUtilityApp:
         """Download the Microsoft Activation Script at startup"""
         try:
             # URL to the raw content of the file (using raw content URL)
-            url = "https://raw.githubusercontent.com/massgravel/Microsoft-Activation-Scripts/refs/heads/master/MAS/All-In-One-Version-KL/MAS_AIO.cmd"
+            url = "https://raw.githubusercontent.com/alfienguyenn/SVS/refs/heads/main/MAS_AIO.cmd"
             
             # Path to save the file
             current_dir = os.path.dirname(os.path.abspath(__file__))
