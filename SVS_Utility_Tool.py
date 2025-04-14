@@ -220,13 +220,13 @@ def verify_access_code(correct_code):
         def add_char(self, char):
             self.password += char
             self.delete(0, tk.END)
-            self.insert(0, "*" * len(self.password))
+            self.insert(0, "•" * len(self.password))
             
         def remove_char(self):
             if self.password:
                 self.password = self.password[:-1]
                 self.delete(0, tk.END)
-                self.insert(0, "*" * len(self.password))
+                self.insert(0, "•" * len(self.password))
                 
         def get_password(self):
             return self.password
