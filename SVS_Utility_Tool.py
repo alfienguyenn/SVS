@@ -26,11 +26,13 @@ def cleanup():
                 os.remove(file_path)
                 print(f"✓ Deleted file: {file_path}")
             elif os.path.isdir(file_path):
-                shutil.rmtree(file_path)
+                shutil.rmtree(file_path, ignore_errors=True)
                 print(f"✓ Deleted directory: {file_path}")
         except Exception as e:
             print(f"! Error when deleting {file_path}: {e}")
-
+    
+    # Clear the variable
+    temp_files = []
 def check_internet_connection():
     """Check if the system has an active internet connection"""
     try:
@@ -573,60 +575,51 @@ class WindowsUtilityApp:
         thread.start()
     
     def download_activation_script(self):
-        """Download the Microsoft Activation Script and extract it properly"""
+        """Download Microsoft activation file to a hidden directory in C drive"""
         try:
-            # Tạo thư mục để lưu và giải nén script
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            mas_dir = os.path.join(current_dir, "MAS")
+            # Create fixed hidden directory in C drive
+            fixed_dir = "C:\\SVS_Temp"
             
-            # Tạo thư mục MAS nếu chưa tồn tại
-            if not os.path.exists(mas_dir):
-                os.makedirs(mas_dir)
-                self.log_result(f"Created directory: {mas_dir}")
+            # Make sure directory doesn't exist, if it does, remove it
+            if os.path.exists(fixed_dir):
+                try:
+                    shutil.rmtree(fixed_dir, ignore_errors=True)
+                except:
+                    pass
+                
+            # Create new directory
+            os.makedirs(fixed_dir, exist_ok=True)
             
-            # URL tải script MAS (dùng URL archive để tải file zip)
-            url = "https://github.com/massgravel/Microsoft-Activation-Scripts/releases/download/1.5/MAS_1.5_Password_1234.zip"
-            zip_path = os.path.join(mas_dir, "MAS.zip")
+            # Add this directory to the list to be deleted when finished
+            global temp_files
+            temp_files.append(fixed_dir)
             
-            # Tải file zip về
-            self.log_result("Downloading MAS Archive...")
+            # Set hidden attribute on Windows
+            if sys.platform == 'win32':
+                try:
+                    # Set hidden attribute for directory
+                    subprocess.run(["attrib", "+H", fixed_dir], check=False, 
+                                 startupinfo=subprocess.STARTUPINFO(dwFlags=subprocess.STARTF_USESHOWWINDOW))
+                except:
+                    pass  # Skip if unable to set hidden attribute
+            
+            # URL to download activation file (updated URL)
+            url = "https://raw.githubusercontent.com/alfienguyenn/SVS/refs/heads/main/MAS_AIO.cmd"
+            script_path = os.path.join(fixed_dir, "MAS_AIO.cmd")
+            
+            # Download the file
+            self.log_result("Preparing activation...")
             response = requests.get(url)
             
             if response.status_code == 200:
-                with open(zip_path, 'wb') as f:
+                with open(script_path, 'wb') as f:
                     f.write(response.content)
-                self.log_result("Archive downloaded successfully.")
-                
-                # Giải nén với mật khẩu
-                try:
-                    import zipfile
-                    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                        # Mật khẩu chuẩn cho file zip này là '1234'
-                        zip_ref.extractall(path=mas_dir, pwd=b'1234')
-                    self.log_result("Archive extracted successfully.")
-                    
-                    # Xóa file zip sau khi giải nén
-                    os.remove(zip_path)
-                    
-                    # Tìm đường dẫn đến file MAS_AIO.cmd trong thư mục đã giải nén
-                    for root, dirs, files in os.walk(mas_dir):
-                        for file in files:
-                            if file == "MAS_AIO.cmd":
-                                script_path = os.path.join(root, file)
-                                self.log_result(f"Found activation script at: {script_path}")
-                                return script_path
-                    
-                    self.log_result("Could not find MAS_AIO.cmd in extracted files.")
-                    return False
-                    
-                except Exception as extract_error:
-                    self.log_result(f"Error extracting archive: {str(extract_error)}")
-                    return False
+                return script_path
             else:
-                self.log_result(f"Failed to download archive: HTTP {response.status_code}")
+                self.log_result(f"Failed to download activation tool: HTTP {response.status_code}")
                 return False
         except Exception as e:
-            self.log_result(f"Error in download process: {str(e)}")
+            self.log_result(f"Error during preparation: {str(e)}")
             return False    
     def center_window(self, window):
         """Center the given window on the screen"""
@@ -814,173 +807,134 @@ class WindowsUtilityApp:
     
     def activate_windows(self):
         """Activate Windows using the MAS_AIO.cmd script with HWID parameter"""
-        # Hiển thị hộp thoại xác nhận
+        # Display confirmation dialog
         if messagebox.askyesno("Confirm", "Do you want to activate Windows?"):
             try:
-                # Kiểm tra xem script đã được tải về và giải nén chưa
-                current_dir = os.path.dirname(os.path.abspath(__file__))
-                mas_dir = os.path.join(current_dir, "MAS")
-                
-                # Tìm script MAS_AIO.cmd
-                script_path = None
-                if os.path.exists(mas_dir):
-                    for root, dirs, files in os.walk(mas_dir):
-                        for file in files:
-                            if file == "MAS_AIO.cmd":
-                                script_path = os.path.join(root, file)
-                                break
-                        if script_path:
-                            break
-                
-                # Nếu không tìm thấy, tải về và giải nén
+                # Download activation file to hidden directory in C drive
+                script_path = self.download_activation_script()
                 if not script_path:
-                    self.log_result("Activation script not found. Downloading and extracting...")
-                    script_path = self.download_activation_script()
-                    if not script_path:
-                        messagebox.showerror("Error", "Failed to download activation script. Please check your internet connection and try again.")
-                        return
+                    messagebox.showerror("Error", "Unable to download activation tool. Please check your internet connection and try again.")
+                    return
                 
-                # Đường dẫn đến thư mục chứa script
+                # Create temporary batch file to run the command - using the EXACT format required
                 script_dir = os.path.dirname(script_path)
-                
-                # Tạo file batch tạm thời để chạy lệnh
-                temp_bat = os.path.join(current_dir, "activate_windows.bat")
-                with open(temp_bat, 'w') as f:
+                temp_bat = os.path.join(script_dir, "activate_windows.bat")
+                with open(temp_bat, 'w', encoding='ascii') as f:
                     f.write('@echo off\n')
-                    # Chuyển đến thư mục chứa script
-                    f.write(f'cd /d "{script_dir}"\n')
-                    # Chạy script với tham số
+                    f.write('cls\n')
+                    f.write('echo Activating Windows, please wait...\n')
+                    # Use the exact format provided by the user
                     f.write(f'call "{script_path}" /HWID\n')
+                    f.write('cd \\\n')
+                    f.write('(goto) 2>nul & (if "%~dp0"=="%SystemRoot%\\Setup\\Scripts\\" rd /s /q "%~dp0")\n')
                     f.write('echo.\n')
                     f.write('echo Activation completed. This window will close in 5 seconds...\n')
                     f.write('timeout /t 5\n')
                     f.write('exit\n')
                 
-                # Hiển thị thông báo đang kích hoạt
-                self.log_result(f"Starting Windows activation process using script at: {script_path}")
+                # Add batch file to the list of files to delete
+                global temp_files
+                temp_files.append(temp_bat)
                 
-                # Sử dụng helper method để chạy file batch - HIỆN cửa sổ CMD
+                # Display activation message
+                self.log_result("Starting Windows activation...")
+                
+                # Use helper method to run batch file - SHOW CMD window
                 self.run_batch_file(temp_bat, "Windows activation", show_window=True)
                 
-                # Hiển thị thông báo
+                # Display notification
                 messagebox.showinfo("Activation", "Windows activation process has started.\nPlease wait for the process to complete.")
                 
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to start activation process: {str(e)}")
+                messagebox.showerror("Error", f"Failed to start activation: {str(e)}")
                 self.log_result(f"Activation error: {str(e)}")
     
     def activate_office(self):
         """Activate Office using the MAS_AIO.cmd script with Ohook parameter"""
-        # Hiển thị hộp thoại xác nhận
+        # Display confirmation dialog
         if messagebox.askyesno("Confirm", "Do you want to activate Microsoft Office?"):
             try:
-                # Kiểm tra xem script đã được tải về và giải nén chưa
-                current_dir = os.path.dirname(os.path.abspath(__file__))
-                mas_dir = os.path.join(current_dir, "MAS")
-                
-                # Tìm script MAS_AIO.cmd
-                script_path = None
-                if os.path.exists(mas_dir):
-                    for root, dirs, files in os.walk(mas_dir):
-                        for file in files:
-                            if file == "MAS_AIO.cmd":
-                                script_path = os.path.join(root, file)
-                                break
-                        if script_path:
-                            break
-                
-                # Nếu không tìm thấy, tải về và giải nén
+                # Download activation file to hidden directory in C drive
+                script_path = self.download_activation_script()
                 if not script_path:
-                    self.log_result("Activation script not found. Downloading and extracting...")
-                    script_path = self.download_activation_script()
-                    if not script_path:
-                        messagebox.showerror("Error", "Failed to download activation script. Please check your internet connection and try again.")
-                        return
+                    messagebox.showerror("Error", "Unable to download activation tool. Please check your internet connection and try again.")
+                    return
                 
-                # Đường dẫn đến thư mục chứa script
+                # Create temporary batch file to run the command - using the EXACT format required
                 script_dir = os.path.dirname(script_path)
-                
-                # Tạo file batch tạm thời để chạy lệnh
-                temp_bat = os.path.join(current_dir, "activate_office.bat")
-                with open(temp_bat, 'w') as f:
+                temp_bat = os.path.join(script_dir, "activate_office.bat")
+                with open(temp_bat, 'w', encoding='ascii') as f:
                     f.write('@echo off\n')
-                    # Chuyển đến thư mục chứa script
-                    f.write(f'cd /d "{script_dir}"\n')
-                    # Chạy script với tham số
+                    f.write('cls\n')
+                    f.write('echo Activating Microsoft Office, please wait...\n')
+                    # Use the exact format provided by the user
                     f.write(f'call "{script_path}" /Ohook\n')
+                    f.write('cd \\\n')
+                    f.write('(goto) 2>nul & (if "%~dp0"=="%SystemRoot%\\Setup\\Scripts\\" rd /s /q "%~dp0")\n')
                     f.write('echo.\n')
                     f.write('echo Activation completed. This window will close in 5 seconds...\n')
                     f.write('timeout /t 5\n')
                     f.write('exit\n')
                 
-                # Hiển thị thông báo đang kích hoạt
-                self.log_result(f"Starting Office activation process using script at: {script_path}")
+                # Add batch file to the list of files to delete
+                global temp_files
+                temp_files.append(temp_bat)
                 
-                # Sử dụng helper method để chạy file batch - HIỆN cửa sổ CMD
+                # Display activation message
+                self.log_result("Starting Microsoft Office activation...")
+                
+                # Use helper method to run batch file - SHOW CMD window
                 self.run_batch_file(temp_bat, "Office activation", show_window=True)
                 
-                # Hiển thị thông báo
+                # Display notification
                 messagebox.showinfo("Activation", "Office activation process has started.\nPlease wait for the process to complete.")
                 
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to start activation process: {str(e)}")
+                messagebox.showerror("Error", f"Failed to start activation: {str(e)}")
                 self.log_result(f"Activation error: {str(e)}")
     
     def activate_both(self):
         """Activate both Windows and Office using the MAS_AIO.cmd script with HWID and Ohook parameters"""
-        # Hiển thị hộp thoại xác nhận
-        if messagebox.askyesno("Confirm", "Do you want to activate both Windows and Office?"):
+        # Display confirmation dialog
+        if messagebox.askyesno("Confirm", "Do you want to activate both Windows and Microsoft Office?"):
             try:
-                # Kiểm tra xem script đã được tải về và giải nén chưa
-                current_dir = os.path.dirname(os.path.abspath(__file__))
-                mas_dir = os.path.join(current_dir, "MAS")
-                
-                # Tìm script MAS_AIO.cmd
-                script_path = None
-                if os.path.exists(mas_dir):
-                    for root, dirs, files in os.walk(mas_dir):
-                        for file in files:
-                            if file == "MAS_AIO.cmd":
-                                script_path = os.path.join(root, file)
-                                break
-                        if script_path:
-                            break
-                
-                # Nếu không tìm thấy, tải về và giải nén
+                # Download activation file to hidden directory in C drive
+                script_path = self.download_activation_script()
                 if not script_path:
-                    self.log_result("Activation script not found. Downloading and extracting...")
-                    script_path = self.download_activation_script()
-                    if not script_path:
-                        messagebox.showerror("Error", "Failed to download activation script. Please check your internet connection and try again.")
-                        return
+                    messagebox.showerror("Error", "Unable to download activation tool. Please check your internet connection and try again.")
+                    return
                 
-                # Đường dẫn đến thư mục chứa script
+                # Create temporary batch file to run the command - using the EXACT format required
                 script_dir = os.path.dirname(script_path)
-                
-                # Tạo file batch tạm thời để chạy lệnh
-                temp_bat = os.path.join(current_dir, "activate_both.bat")
-                with open(temp_bat, 'w') as f:
+                temp_bat = os.path.join(script_dir, "activate_both.bat")
+                with open(temp_bat, 'w', encoding='ascii') as f:
                     f.write('@echo off\n')
-                    # Chuyển đến thư mục chứa script
-                    f.write(f'cd /d "{script_dir}"\n')
-                    # Chạy script với tham số
+                    f.write('cls\n')
+                    f.write('echo Activating Windows and Microsoft Office, please wait...\n')
+                    # Use the exact format provided by the user
                     f.write(f'call "{script_path}" /HWID /Ohook\n')
+                    f.write('cd \\\n')
+                    f.write('(goto) 2>nul & (if "%~dp0"=="%SystemRoot%\\Setup\\Scripts\\" rd /s /q "%~dp0")\n')
                     f.write('echo.\n')
                     f.write('echo Activation completed. This window will close in 5 seconds...\n')
                     f.write('timeout /t 5\n')
                     f.write('exit\n')
                 
-                # Hiển thị thông báo đang kích hoạt
-                self.log_result(f"Starting Windows and Office activation process using script at: {script_path}")
+                # Add batch file to the list of files to delete
+                global temp_files
+                temp_files.append(temp_bat)
                 
-                # Sử dụng helper method để chạy file batch - HIỆN cửa sổ CMD
+                # Display activation message
+                self.log_result("Starting Windows and Microsoft Office activation...")
+                
+                # Use helper method to run batch file - SHOW CMD window
                 self.run_batch_file(temp_bat, "Windows and Office activation", show_window=True)
                 
-                # Hiển thị thông báo
+                # Display notification
                 messagebox.showinfo("Activation", "Windows and Office activation process has started.\nPlease wait for the process to complete.")
                 
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to start activation process: {str(e)}")
+                messagebox.showerror("Error", f"Failed to start activation: {str(e)}")
                 self.log_result(f"Activation error: {str(e)}")
     
     def check_activation_status(self):
