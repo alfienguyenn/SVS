@@ -655,7 +655,7 @@ class WindowsUtilityApp:
         self.frames["main_menu"] = frame
         
         # Title
-        title = tk.Label(frame, text="SV Utility Tool", 
+        title = tk.Label(frame, text="SVS UTILITY TOOL", 
                         font=("Helvetica", 16, "bold"),
                         bg=self.bg_color)
         title.pack(pady=(0, 20))
