@@ -238,7 +238,7 @@ def verify_access_code(correct_code):
     # Create password entry field with reduced width
     entry = PasswordEntry(
         entry_frame,
-        font=("Segoe UI", 11),  # Smaller font with better rendering
+        font=("Segoe UI", 15),  # Smaller font with better rendering
         bg="white",
         relief=tk.FLAT,
         highlightbackground="#DADCE0",
