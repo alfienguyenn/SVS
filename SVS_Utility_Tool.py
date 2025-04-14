@@ -510,6 +510,16 @@ class WindowsUtilityApp:
         self.main_frame = tk.Frame(self.root, bg=self.bg_color)
         self.main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
         
+        # Add author label at the bottom of the window
+        author_label = tk.Label(
+            self.root, 
+            text="Author: Alfie Nguyen", 
+            font=("Helvetica", 8), 
+            fg="#999999",  # Light gray color for subtle appearance
+            bg=self.bg_color
+        )
+        author_label.pack(side=tk.BOTTOM, anchor=tk.SE, padx=10, pady=2)
+        
         # Setup content frames for each function
         self.frames = {}
         self.current_frame = None
