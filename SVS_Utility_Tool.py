@@ -481,7 +481,7 @@ class ToggleButton(tk.Canvas):
 class WindowsUtilityApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("SV Utility Tool")
+        self.root.title("SVS Utility Tool 1.0")
         self.root.geometry("600x550")  # Increased height for more content
         self.root.resizable(True, True)
         
@@ -665,7 +665,7 @@ class WindowsUtilityApp:
         self.frames["main_menu"] = frame
         
         # Title
-        title = tk.Label(frame, text="SV Utility Tool", 
+        title = tk.Label(frame, text="SVS UTILITY TOOL", 
                         font=("Helvetica", 16, "bold"),
                         bg=self.bg_color)
         title.pack(pady=(0, 20))
