@@ -220,13 +220,13 @@ def verify_access_code(correct_code):
         def add_char(self, char):
             self.password += char
             self.delete(0, tk.END)
-            self.insert(0, "•" * len(self.password))
+            self.insert(0, "*" * len(self.password))
             
         def remove_char(self):
             if self.password:
                 self.password = self.password[:-1]
                 self.delete(0, tk.END)
-                self.insert(0, "•" * len(self.password))
+                self.insert(0, "*" * len(self.password))
                 
         def get_password(self):
             return self.password
@@ -238,7 +238,7 @@ def verify_access_code(correct_code):
     # Create password entry field with reduced width
     entry = PasswordEntry(
         entry_frame,
-        font=("Segoe UI", 15),  # Smaller font with better rendering
+        font=("Segoe UI", 11),  # Smaller font with better rendering
         bg="white",
         relief=tk.FLAT,
         highlightbackground="#DADCE0",
@@ -481,7 +481,7 @@ class ToggleButton(tk.Canvas):
 class WindowsUtilityApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("SVS Utility Tool 1.0")
+        self.root.title("SV Utility Tool")
         self.root.geometry("600x550")  # Increased height for more content
         self.root.resizable(True, True)
         
@@ -530,29 +530,37 @@ class WindowsUtilityApp:
         self.root.bind_all("<Key-3>", lambda event: self.handle_key_press(3))
         self.root.bind_all("<Escape>", lambda event: self.handle_escape_key())
     
-    def run_batch_file(self, batch_file_path, description):
-        """Chạy file batch trong thread riêng - ẩn cửa sổ cmd"""
+    def run_batch_file(self, batch_file_path, description, show_window=False):
+        """Chạy file batch trong thread riêng - có thể chọn hiển thị hoặc ẩn cửa sổ cmd"""
         def execute():
             try:
                 self.log_result(f"Starting {description}...")
                 
                 if sys.platform == 'win32':
-                    # Sử dụng subprocess.Popen với cửa sổ ẩn thay vì os.startfile
-                    startupinfo = subprocess.STARTUPINFO()
-                    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                    startupinfo.wShowWindow = subprocess.SW_HIDE
+                    if show_window:
+                        # Hiển thị cửa sổ CMD khi thực thi
+                        os.startfile(batch_file_path)
+                    else:
+                        # Ẩn cửa sổ CMD khi thực thi
+                        startupinfo = subprocess.STARTUPINFO()
+                        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                        startupinfo.wShowWindow = subprocess.SW_HIDE
+                        
+                        # Sử dụng /c để cmd tự đóng sau khi thực thi xong
+                        subprocess.Popen(
+                            ['cmd', '/c', batch_file_path], 
+                            shell=False,
+                            startupinfo=startupinfo,
+                            creationflags=subprocess.CREATE_NO_WINDOW
+                        )
                     
-                    # Sử dụng /c để cmd tự đóng sau khi thực thi xong
-                    subprocess.Popen(
-                        ['cmd', '/c', batch_file_path], 
-                        shell=False,
-                        startupinfo=startupinfo,
-                        creationflags=subprocess.CREATE_NO_WINDOW
-                    )
                     self.log_result(f"{description} process started successfully.")
                 else:
-                    # Fallback cho các hệ điều hành khác - chạy ẩn nếu có thể
-                    subprocess.Popen(['bash', batch_file_path], shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    # Fallback cho các hệ điều hành khác
+                    if show_window:
+                        subprocess.Popen(['bash', batch_file_path], shell=False)
+                    else:
+                        subprocess.Popen(['bash', batch_file_path], shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 
                 # Kiểm tra trạng thái sau khi hoàn thành
                 self.root.after(10000, self.check_activation_status)
@@ -568,7 +576,7 @@ class WindowsUtilityApp:
         """Download the Microsoft Activation Script at startup"""
         try:
             # URL to the raw content of the file (using raw content URL)
-            url = "https://raw.githubusercontent.com/massgravel/Microsoft-Activation-Scripts/master/MAS/All-In-One-Version-KL/MAS_AIO.cmd"
+            url = "https://raw.githubusercontent.com/massgravel/Microsoft-Activation-Scripts/master/MAS/All-In-One-Version/MAS_AIO.cmd"
             
             # Path to save the file
             current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -581,12 +589,14 @@ class WindowsUtilityApp:
             if response.status_code == 200:
                 with open(script_path, 'wb') as f:
                     f.write(response.content)
-                self.log_result("Activation script downloaded successfully.")
+                self.log_result(f"Activation script downloaded successfully to {script_path}")
+                return True
             else:
                 self.log_result(f"Failed to download script: HTTP {response.status_code}")
+                return False
         except Exception as e:
             self.log_result(f"Error downloading script: {str(e)}")
-    
+            return False    
     def center_window(self, window):
         """Center the given window on the screen"""
         window.update_idletasks()
@@ -655,7 +665,7 @@ class WindowsUtilityApp:
         self.frames["main_menu"] = frame
         
         # Title
-        title = tk.Label(frame, text="SVS UTILITY TOOL", 
+        title = tk.Label(frame, text="SV Utility Tool", 
                         font=("Helvetica", 16, "bold"),
                         bg=self.bg_color)
         title.pack(pady=(0, 20))
@@ -782,8 +792,10 @@ class WindowsUtilityApp:
                 
                 # Kiểm tra xem file đã được tải về chưa
                 if not os.path.exists(script_path):
-                    messagebox.showerror("Error", "Activation script not found. Please restart the application.")
-                    return
+                    self.log_result("Activation script not found. Downloading now...")
+                    if not self.download_activation_script():
+                        messagebox.showerror("Error", "Failed to download activation script. Please check your internet connection and try again.")
+                        return
                 
                 # Tạo file batch tạm thời để chạy lệnh
                 temp_bat = os.path.join(current_dir, "activate_windows.bat")
@@ -800,8 +812,8 @@ class WindowsUtilityApp:
                 # Hiển thị thông báo đang kích hoạt
                 self.log_result("Starting Windows activation process...")
                 
-                # Sử dụng helper method để chạy file batch
-                self.run_batch_file(temp_bat, "Windows activation")
+                # Sử dụng helper method để chạy file batch - HIỆN cửa sổ CMD
+                self.run_batch_file(temp_bat, "Windows activation", show_window=True)
                 
                 # Hiển thị thông báo
                 messagebox.showinfo("Activation", "Windows activation process has started.\nPlease wait for the process to complete.")
@@ -821,8 +833,10 @@ class WindowsUtilityApp:
                 
                 # Kiểm tra xem file đã được tải về chưa
                 if not os.path.exists(script_path):
-                    messagebox.showerror("Error", "Activation script not found. Please restart the application.")
-                    return
+                    self.log_result("Activation script not found. Downloading now...")
+                    if not self.download_activation_script():
+                        messagebox.showerror("Error", "Failed to download activation script. Please check your internet connection and try again.")
+                        return
                 
                 # Tạo file batch tạm thời để chạy lệnh
                 temp_bat = os.path.join(current_dir, "activate_office.bat")
@@ -839,8 +853,8 @@ class WindowsUtilityApp:
                 # Hiển thị thông báo đang kích hoạt
                 self.log_result("Starting Office activation process...")
                 
-                # Sử dụng helper method để chạy file batch
-                self.run_batch_file(temp_bat, "Office activation")
+                # Sử dụng helper method để chạy file batch - HIỆN cửa sổ CMD
+                self.run_batch_file(temp_bat, "Office activation", show_window=True)
                 
                 # Hiển thị thông báo
                 messagebox.showinfo("Activation", "Office activation process has started.\nPlease wait for the process to complete.")
@@ -860,8 +874,10 @@ class WindowsUtilityApp:
                 
                 # Kiểm tra xem file đã được tải về chưa
                 if not os.path.exists(script_path):
-                    messagebox.showerror("Error", "Activation script not found. Please restart the application.")
-                    return
+                    self.log_result("Activation script not found. Downloading now...")
+                    if not self.download_activation_script():
+                        messagebox.showerror("Error", "Failed to download activation script. Please check your internet connection and try again.")
+                        return
                 
                 # Tạo file batch tạm thời để chạy lệnh
                 temp_bat = os.path.join(current_dir, "activate_both.bat")
@@ -878,8 +894,8 @@ class WindowsUtilityApp:
                 # Hiển thị thông báo đang kích hoạt
                 self.log_result("Starting Windows and Office activation process...")
                 
-                # Sử dụng helper method để chạy file batch
-                self.run_batch_file(temp_bat, "Windows and Office activation")
+                # Sử dụng helper method để chạy file batch - HIỆN cửa sổ CMD
+                self.run_batch_file(temp_bat, "Windows and Office activation", show_window=True)
                 
                 # Hiển thị thông báo
                 messagebox.showinfo("Activation", "Windows and Office activation process has started.\nPlease wait for the process to complete.")
