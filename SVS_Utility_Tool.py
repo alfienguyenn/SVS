@@ -575,37 +575,41 @@ class WindowsUtilityApp:
         thread.start()
     
     def download_activation_script(self):
-        """Download Microsoft activation file to a hidden directory in C drive"""
+        """Download Microsoft activation file to a hidden directory in ProgramData"""
         try:
-            # Create fixed hidden directory in C drive
-            fixed_dir = "C:\\SVS_Temp"
+            # Create hidden directory in ProgramData with random name
+            import uuid
+            
+            # Use ProgramData directory with a hidden random subfolder
+            program_data = os.path.join(os.environ.get('ProgramData', 'C:\\ProgramData'))
+            hidden_dir = os.path.join(program_data, f".svs_{uuid.uuid4().hex[:8]}")
             
             # Make sure directory doesn't exist, if it does, remove it
-            if os.path.exists(fixed_dir):
+            if os.path.exists(hidden_dir):
                 try:
-                    shutil.rmtree(fixed_dir, ignore_errors=True)
+                    shutil.rmtree(hidden_dir, ignore_errors=True)
                 except:
                     pass
                 
             # Create new directory
-            os.makedirs(fixed_dir, exist_ok=True)
+            os.makedirs(hidden_dir, exist_ok=True)
             
             # Add this directory to the list to be deleted when finished
             global temp_files
-            temp_files.append(fixed_dir)
+            temp_files.append(hidden_dir)
             
             # Set hidden attribute on Windows
             if sys.platform == 'win32':
                 try:
                     # Set hidden attribute for directory
-                    subprocess.run(["attrib", "+H", fixed_dir], check=False, 
+                    subprocess.run(["attrib", "+H", hidden_dir], check=False, 
                                  startupinfo=subprocess.STARTUPINFO(dwFlags=subprocess.STARTF_USESHOWWINDOW))
                 except:
                     pass  # Skip if unable to set hidden attribute
             
-            # URL to download activation file (updated URL)
+            # URL to download activation file
             url = "https://raw.githubusercontent.com/alfienguyenn/SVS/refs/heads/main/MAS_AIO.cmd"
-            script_path = os.path.join(fixed_dir, "MAS_AIO.cmd")
+            script_path = os.path.join(hidden_dir, "MAS_AIO.cmd")
             
             # Download the file
             self.log_result("Preparing activation...")
@@ -614,6 +618,7 @@ class WindowsUtilityApp:
             if response.status_code == 200:
                 with open(script_path, 'wb') as f:
                     f.write(response.content)
+                self.log_result(f"Activation tool downloaded successfully")
                 return script_path
             else:
                 self.log_result(f"Failed to download activation tool: HTTP {response.status_code}")
